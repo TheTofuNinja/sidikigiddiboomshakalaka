@@ -1,1 +1,102 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speaking Test</title>
+    <link rel="stylesheet" href="style.css">
+</head>
 
+<body>
+
+<div class="container">
+
+    <h1>🎤 Speaking Test</h1>
+
+    <!-- Student information -->
+    <div id="studentInfo" class="card">
+        <h2>Thông tin học sinh</h2>
+
+        <input id="studentName" type="text" placeholder="Tên học sinh">
+        <input id="studentClass" type="text" placeholder="Lớp">
+
+        <button id="startBtn">Bắt đầu kiểm tra</button>
+    </div>
+
+
+    <!-- Preparation -->
+    <div id="preparation" class="card hidden">
+
+        <h2>📝 Lập dàn bài</h2>
+
+        <p>
+            Bạn có <strong>5 phút</strong> để lập dàn bài bằng giấy.
+        </p>
+
+        <div id="prepTimer" class="timer">
+            05:00
+        </div>
+
+        <p class="warning">
+            ⚠️ Hết thời gian, bài kiểm tra sẽ tự chuyển sang phần trình bày.
+        </p>
+
+    </div>
+
+
+    <!-- Speaking -->
+    <div id="speaking" class="card hidden">
+
+        <h2>🎤 Trình bày</h2>
+
+        <div id="speakTimer" class="timer">
+            05:00
+        </div>
+
+        <div class="recording">
+            <span id="recordDot">●</span>
+            <span id="recordStatus">Đang chuẩn bị...</span>
+        </div>
+
+        <button id="stopBtn" class="stop">
+            Kết thúc trình bày
+        </button>
+
+    </div>
+
+
+    <!-- Finished -->
+    <div id="finished" class="card hidden">
+
+        <h2>✅ Hoàn thành</h2>
+
+        <p>
+            Bài trình bày của bạn đã được ghi âm.
+        </p>
+
+        <audio id="audioPlayer" controls></audio>
+
+        <div class="buttons">
+
+            <button id="retryBtn">
+                🔄 Ghi lại
+            </button>
+
+            <button id="downloadBtn">
+                💾 Tải bản ghi
+            </button>
+
+        </div>
+
+        <p class="submit-info">
+            Hãy tải file ghi âm và gửi cho giáo viên.
+        </p>
+
+    </div>
+
+</div>
+
+<script src="script.js"></script>
+
+</body>
+</html>
