@@ -10,7 +10,6 @@ const downloadBtn = document.getElementById("downloadBtn");
 
 const prepTimer = document.getElementById("prepTimer");
 const speakTimer = document.getElementById("speakTimer");
-
 const recordStatus = document.getElementById("recordStatus");
 const audioPlayer = document.getElementById("audioPlayer");
 
@@ -22,13 +21,13 @@ let speakInterval;
 
 let mediaRecorder;
 let audioChunks = [];
-let audioBlob;
-let audioURL;
+let audioBlob = null;
+let audioURL = null;
 
 
-// -------------------------
-// Utility
-// -------------------------
+// =========================
+// FORMAT TIME
+// =========================
 
 function formatTime(seconds) {
     const minutes = Math.floor(seconds / 60);
@@ -42,9 +41,9 @@ function formatTime(seconds) {
 }
 
 
-// -------------------------
-// Start test
-// -------------------------
+// =========================
+// START TEST
+// =========================
 
 startBtn.addEventListener("click", () => {
 
@@ -63,11 +62,13 @@ startBtn.addEventListener("click", () => {
 });
 
 
-// -------------------------
-// Preparation timer
-// -------------------------
+// =========================
+// 5 MINUTE PREPARATION
+// =========================
 
 function startPreparation() {
+
+    clearInterval(prepInterval);
 
     prepTime = 5 * 60;
 
@@ -87,16 +88,15 @@ function startPreparation() {
             speaking.classList.remove("hidden");
 
             startSpeaking();
-
         }
 
     }, 1000);
 }
 
 
-// -------------------------
-// Speaking
-// -------------------------
+// =========================
+// START RECORDING
+// =========================
 
 async function startSpeaking() {
 
@@ -122,20 +122,36 @@ async function startSpeaking() {
 
         };
 
-        mediaRecorder.onstop = () => {
+        mediaRecorder.onstop = async () => {
 
-            audioBlob = new Blob(audioChunks, {
-                type: "audio/webm"
-            });
+            recordStatus.textContent = "Đang xử lý MP3...";
 
-            audioURL = URL.createObjectURL(audioBlob);
+            try {
 
-            audioPlayer.src = audioURL;
+                const webmBlob = new Blob(audioChunks, {
+                    type: "audio/webm"
+                });
 
-            speaking.classList.add("hidden");
-            finished.classList.remove("hidden");
+                audioBlob = await convertToMP3(webmBlob);
 
-            stream.getTracks().forEach(track => track.stop());
+                audioURL = URL.createObjectURL(audioBlob);
+
+                audioPlayer.src = audioURL;
+
+                speaking.classList.add("hidden");
+                finished.classList.remove("hidden");
+
+            } catch (error) {
+
+                console.error(error);
+
+                alert("Không thể chuyển bản ghi sang MP3.");
+
+            } finally {
+
+                stream.getTracks().forEach(track => track.stop());
+
+            }
 
         };
 
@@ -167,33 +183,33 @@ async function startSpeaking() {
             "Không thể sử dụng microphone. " +
             "Hãy cấp quyền microphone cho trình duyệt."
         );
-
     }
 }
 
 
-// -------------------------
-// Stop recording
-// -------------------------
+// =========================
+// STOP RECORDING
+// =========================
 
 function stopRecording() {
 
-    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    clearInterval(speakInterval);
+
+    if (mediaRecorder &&
+        mediaRecorder.state !== "inactive") {
 
         mediaRecorder.stop();
 
     }
-
-    clearInterval(speakInterval);
 
     recordStatus.textContent = "Đã ghi xong.";
 
 }
 
 
-// -------------------------
-// Stop button
-// -------------------------
+// =========================
+// STOP BUTTON
+// =========================
 
 stopBtn.addEventListener("click", () => {
 
@@ -202,49 +218,156 @@ stopBtn.addEventListener("click", () => {
 });
 
 
-// -------------------------
-// Download
-// -------------------------
+// =========================
+// WEBM → MP3
+// =========================
+
+async function convertToMP3(blob) {
+
+    const arrayBuffer = await blob.arrayBuffer();
+
+    const audioContext = new AudioContext();
+
+    const audioBuffer =
+        await audioContext.decodeAudioData(arrayBuffer);
+
+    const sampleRate = audioBuffer.sampleRate;
+
+    const channelCount = audioBuffer.numberOfChannels;
+
+    const mp3Encoder = new lamejs.Mp3Encoder(
+        channelCount,
+        sampleRate,
+        128
+    );
+
+    const mp3Data = [];
+
+    const sampleBlockSize = 1152;
+
+    const channels = [];
+
+    for (let channel = 0; channel < channelCount; channel++) {
+
+        channels.push(
+            audioBuffer.getChannelData(channel)
+        );
+
+    }
+
+    for (
+        let i = 0;
+        i < audioBuffer.length;
+        i += sampleBlockSize
+    ) {
+
+        const left = new Int16Array(
+            Math.min(
+                sampleBlockSize,
+                audioBuffer.length - i
+            )
+        );
+
+        let right = null;
+
+        for (let j = 0; j < left.length; j++) {
+
+            let sample = channels[0][i + j];
+
+            sample = Math.max(-1, Math.min(1, sample));
+
+            left[j] =
+                sample < 0
+                    ? sample * 32768
+                    : sample * 32767;
+        }
+
+        if (channelCount > 1) {
+
+            right = new Int16Array(left.length);
+
+            for (let j = 0; j < right.length; j++) {
+
+                let sample = channels[1][i + j];
+
+                sample = Math.max(-1, Math.min(1, sample));
+
+                right[j] =
+                    sample < 0
+                        ? sample * 32768
+                        : sample * 32767;
+            }
+        }
+
+        const mp3buf =
+            channelCount === 1
+                ? mp3Encoder.encodeBuffer(left)
+                : mp3Encoder.encodeBuffer(left, right);
+
+        if (mp3buf.length > 0) {
+            mp3Data.push(mp3buf);
+        }
+    }
+
+    const end = mp3Encoder.flush();
+
+    if (end.length > 0) {
+        mp3Data.push(end);
+    }
+
+    await audioContext.close();
+
+    return new Blob(mp3Data, {
+        type: "audio/mp3"
+    });
+}
+
+
+// =========================
+// DOWNLOAD MP3
+// =========================
 
 downloadBtn.addEventListener("click", () => {
 
     if (!audioBlob) {
+        alert("Chưa có bản ghi.");
         return;
     }
-
-    const name =
-        document.getElementById("studentName").value.trim() ||
-        "student";
-
-    const studentClass =
-        document.getElementById("studentClass").value.trim() ||
-        "class";
-
-    const filename =
-        `${name}_${studentClass}_speaking.webm`;
 
     const link = document.createElement("a");
 
     link.href = audioURL;
-    link.download = filename;
+
+    // Tên file cố định
+    link.download = "speaking.mp3";
+
+    document.body.appendChild(link);
 
     link.click();
+
+    document.body.removeChild(link);
 
 });
 
 
-// -------------------------
-// Retry
-// -------------------------
+// =========================
+// RETRY
+// =========================
 
 retryBtn.addEventListener("click", () => {
+
+    clearInterval(prepInterval);
+    clearInterval(speakInterval);
 
     if (audioURL) {
         URL.revokeObjectURL(audioURL);
     }
 
-    finished.classList.add("hidden");
+    audioBlob = null;
+    audioURL = null;
+    audioChunks = [];
 
+    finished.classList.add("hidden");
     preparation.classList.remove("hidden");
 
     startPreparation();
